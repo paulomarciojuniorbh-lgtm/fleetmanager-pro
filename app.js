@@ -66,6 +66,9 @@
   // ---------- cálculos ----------
   const veic = id => D.veiculos.find(v => v.id === id);
   const mot = id => D.motoristas.find(m => m.id === id);
+  const ofi = id => (D.oficinas || []).find(o => o.id === id);
+  const optOficinas = sel => `<option value="">Nenhuma</option>` + (D.oficinas || []).map(o => `<option value="${o.id}" ${sel === o.id ? "selected" : ""}>${esc(o.nome)}</option>`).join("");
+  const estrelas = n => n ? "★".repeat(n) + "☆".repeat(5 - n) : "";
   const motDoVeic = id => D.motoristas.find(m => m.ativo && m.veiculo_id === id);
   const aberta = c => !c.pago_em;
   function situacaoCob(c) {
@@ -226,7 +229,7 @@
         const pior = man.some(x => x.nivel === "crit") ? ["Manutenção vencida", "crit"] : man.some(x => x.nivel === "warn") ? ["Manutenção perto", "warn"] : null;
         return `<button type="button" class="item clicavel" data-veic="${v.id}">
           <div class="t"><div><span class="placa">${esc(v.placa || "sem placa")}</span> <b>${esc(v.modelo || "")}</b></div><span class="chip ${st[1]}">${st[0]}</span></div>
-          <div class="meta"><span>${v.ano || ""} ${esc(v.cor || "")}</span><span>${km(v.km_atual)}</span><span>${m ? "Com " + esc(m.nome) : "Sem motorista"}</span></div>
+          <div class="meta"><span>${v.ano || ""} ${esc(v.cor || "")}</span><span>${km(v.km_atual)}</span><span>${m ? "Com " + esc(m.nome) : "Sem motorista"}</span>${v.status === "oficina" && ofi(v.oficina_id) ? `<span>Em ${esc(ofi(v.oficina_id).nome)}</span>` : ""}</div>
           ${pior ? `<div><span class="chip ${pior[1]}">${pior[0]}</span></div>` : ""}</button>`;
       }).join("")}</div>` : `<div class="vazio">Nenhum carro ainda.</div>`}
       <button class="fab" type="button" data-novo="veiculo">+ Carro</button>`;
@@ -241,11 +244,13 @@
       <div class="campo"><label for="vKm">Km atual</label><input id="vKm" type="number" inputmode="numeric" value="${esc(v.km_atual)}"></div></div>
       <div class="grade2"><div class="campo"><label for="vSt">Situação</label><select id="vSt">${Object.entries(STATUS).map(([k, [l]]) => `<option value="${k}" ${v.status === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
       <div class="campo"><label for="vVal">Valor de compra</label><input id="vVal" type="number" inputmode="decimal" step="0.01" value="${esc(v.valor_compra)}"></div></div>
+      <div class="campo" id="vOfBox" ${v.status === "oficina" ? "" : "hidden"}><label for="vOf">Em qual oficina</label><select id="vOf">${optOficinas(v.oficina_id)}</select></div>
       <div class="campo"><label for="vRen">Renavam</label><input id="vRen" inputmode="numeric" value="${esc(v.renavam)}"></div>
       <div class="campo"><label for="vObs">Observações</label><textarea id="vObs">${esc(v.obs)}</textarea></div>
       <button class="btn pri cheio" type="submit">Salvar carro</button>
       ${v.id ? `<button class="btn perigo cheio" type="button" id="vDel">Apagar carro</button>` : ""}</form>`);
-    $("fV").onsubmit = e => { e.preventDefault(); salvar("frota_veiculos", { id: v.id, placa: $("vPl").value.trim().toUpperCase(), ano: num($("vAno").value), modelo: $("vMod").value.trim(), cor: $("vCor").value.trim(), km_atual: num($("vKm").value), status: $("vSt").value, valor_compra: num($("vVal").value), renavam: $("vRen").value.trim() || null, obs: $("vObs").value.trim() || null }, "Carro salvo"); };
+    $("vSt").onchange = () => { $("vOfBox").hidden = $("vSt").value !== "oficina"; };
+    $("fV").onsubmit = e => { e.preventDefault(); salvar("frota_veiculos", { id: v.id, oficina_id: $("vSt").value === "oficina" ? ($("vOf").value || null) : null, placa: $("vPl").value.trim().toUpperCase(), ano: num($("vAno").value), modelo: $("vMod").value.trim(), cor: $("vCor").value.trim(), km_atual: num($("vKm").value), status: $("vSt").value, valor_compra: num($("vVal").value), renavam: $("vRen").value.trim() || null, obs: $("vObs").value.trim() || null }, "Carro salvo"); };
     if (v.id) $("vDel").onclick = () => confirmar("Apagar este carro? As despesas e cobranças antigas continuam no histórico.", () => apagar("frota_veiculos", v.id, "Carro apagado"));
   }
   function detalheVeiculo(id) {
@@ -258,7 +263,8 @@
     abrirFolha(`${v.placa} · ${v.modelo || ""}`, `
       <div class="kpis" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div class="kpi"><span class="v">${R0(recAno)}</span><span class="l">recebido em ${ano}</span></div>
         <div class="kpi"><span class="v">${R0(despAno)}</span><span class="l">gasto em ${ano}</span></div><div class="kpi"><span class="v">${R0(recAno - despAno)}</span><span class="l">resultado em ${ano}</span></div></div>
-      <div class="item"><div class="meta"><span>${km(v.km_atual)}</span><span>${m ? "Com " + esc(m.nome) : "Sem motorista"}</span><span>${(STATUS[v.status] || [v.status])[0]}</span></div>
+      <div class="item"><div class="meta"><span>${km(v.km_atual)}</span><span>${m ? "Com " + esc(m.nome) : "Sem motorista"}</span><span>${(STATUS[v.status] || [v.status])[0]}${v.status === "oficina" && ofi(v.oficina_id) ? " em " + esc(ofi(v.oficina_id).nome) : ""}</span></div>
+        ${v.status === "oficina" && ofi(v.oficina_id) && ofi(v.oficina_id).telefone ? `<div class="acoes"><a class="btn zap peq" href="${zapOficina(ofi(v.oficina_id), v)}" target="_blank" rel="noopener">Perguntar à oficina</a></div>` : ""}
         <form id="fKm" class="linha"><input id="kmNovo" type="number" inputmode="numeric" placeholder="Km de hoje" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:0 12px;min-height:44px;background:var(--surface)" aria-label="Km de hoje">
         <button class="btn pri" type="submit">Atualizar km</button></form></div>
       <div class="secao"><h3>Manutenção preventiva</h3>${man.length ? `<div class="lista">${man.map(x => { const s = manutStatus(x); return `<button type="button" class="item clicavel" data-acao="manut" data-id="${x.id}"><div class="t"><b>${esc(x.item)}</b><span class="chip ${s.nivel}">${esc(s.txt)}</span></div><div class="meta">Última: ${dt(x.ultima_data)} · ${km(x.ultima_km)}</div></button>`; }).join("")}</div>` : `<div class="vazio">Sem plano de manutenção.</div>`}
@@ -386,6 +392,7 @@
     return `<div class="cab"><div><h2>Mais</h2></div></div><div class="mais">
       <button type="button" data-ir="despesas"><b>Despesas</b><span>Combustível, oficina, seguro, multas</span></button>
       <button type="button" data-ir="manutencao"><b>Manutenção</b><span>Troca de óleo, correia, pneus</span></button>
+      <button type="button" data-ir="oficinas"><b>Oficinas</b><span>Contatos, gastos e histórico</span></button>
       <button type="button" data-ir="vencimentos"><b>Vencimentos</b><span>IPVA, licenciamento, seguro</span></button>
       <button type="button" data-ir="config"><b>Configurações</b><span>Nome da frota, chave Pix, código</span></button></div>`;
   }
@@ -397,7 +404,7 @@
       const tot = lista.reduce((s, x) => s + (+x.valor || 0), 0);
       return voltar("Despesas") + `<div class="cab"><p>${R$(tot)} em ${nomeMes(mesRef)}</p><div class="mes"><button type="button" data-mes="-1" aria-label="Mês anterior">‹</button><span>${nomeMes(mesRef)}</span><button type="button" data-mes="1" aria-label="Próximo mês">›</button></div></div>
         ${Object.keys(porCat).length ? `<div class="item barras">${Object.entries(porCat).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<div class="barra"><span style="min-width:110px">${esc(CAT[k] || k)}</span><div class="trilho"><i class="neg" style="width:${(v / tot * 100).toFixed(1)}%;background:var(--muted)"></i></div><span class="v">${R0(v)}</span></div>`).join("")}</div>` : ""}
-        ${lista.length ? `<div class="lista">${lista.map(x => { const v = veic(x.veiculo_id), m = mot(x.motorista_id); return `<button type="button" class="item clicavel" data-acao="desp" data-id="${x.id}"><div class="t"><b>${esc(CAT[x.categoria] || x.categoria)}</b><span class="valor">${R$(x.valor)}</span></div><div class="meta"><span>${dt(x.data)}</span>${v ? `<span class="placa">${esc(v.placa)}</span>` : "<span>Frota toda</span>"}<span>${esc(x.descricao || "")}</span>${x.repassar && m ? `<span class="chip acc">Repassar a ${esc(m.nome)}</span>` : ""}</div></button>`; }).join("")}</div>` : `<div class="vazio">Nenhuma despesa neste mês.</div>`}
+        ${lista.length ? `<div class="lista">${lista.map(x => { const v = veic(x.veiculo_id), m = mot(x.motorista_id); return `<button type="button" class="item clicavel" data-acao="desp" data-id="${x.id}"><div class="t"><b>${esc(CAT[x.categoria] || x.categoria)}</b><span class="valor">${R$(x.valor)}</span></div><div class="meta"><span>${dt(x.data)}</span>${v ? `<span class="placa">${esc(v.placa)}</span>` : "<span>Frota toda</span>"}<span>${esc(x.descricao || "")}</span>${ofi(x.oficina_id) ? `<span>${esc(ofi(x.oficina_id).nome)}</span>` : ""}${x.repassar && m ? `<span class="chip acc">Repassar a ${esc(m.nome)}</span>` : ""}</div></button>`; }).join("")}</div>` : `<div class="vazio">Nenhuma despesa neste mês.</div>`}
         <button class="fab" type="button" data-novadesp="">+ Despesa</button>`;
     },
     manutencao() {
@@ -405,6 +412,21 @@
       return voltar("Manutenção") + `<p style="margin:0;color:var(--muted)">O aviso usa o km atualizado de cada carro e a data da última troca. Atualize o km dos carros toda semana.</p>
         ${itens.length ? `<div class="lista">${itens.map(o => `<button type="button" class="item clicavel" data-acao="manut" data-id="${o.x.id}"><div class="t"><div><span class="placa">${esc(o.v.placa)}</span> <b>${esc(o.x.item)}</b></div><span class="chip ${o.s.nivel}">${esc(o.s.txt)}</span></div><div class="meta"><span>A cada ${[o.x.intervalo_km ? km(o.x.intervalo_km) : null, o.x.intervalo_dias ? o.x.intervalo_dias + " dias" : null].filter(Boolean).join(" ou ")}</span><span>Última: ${dt(o.x.ultima_data)} · ${km(o.x.ultima_km)}</span></div></button>`).join("")}</div>` : `<div class="vazio">Nenhum item de manutenção. Abra um carro e toque em "Usar plano padrão".</div>`}
         <button class="fab" type="button" data-novamanut="">+ Item</button>`;
+    },
+    oficinas() {
+      const umAno = addD(D.hoje, -365);
+      const lista = (D.oficinas || []).map(o => {
+        const serv = D.despesas.filter(x => x.oficina_id === o.id);
+        const ano = serv.filter(x => x.data >= umAno);
+        return { o, gasto: ano.reduce((s, x) => s + (+x.valor || 0), 0), n: ano.length, ultima: serv.reduce((m, x) => x.data > m ? x.data : m, ""), carros: D.veiculos.filter(v => v.status === "oficina" && v.oficina_id === o.id) };
+      }).sort((a, b) => b.gasto - a.gasto);
+      return voltar("Oficinas") + `<p style="margin:0;color:var(--muted)">Gasto e serviços dos últimos 12 meses, pelas despesas lançadas com a oficina.</p>
+        ${lista.length ? `<div class="lista">${lista.map(({ o, gasto, n, ultima, carros }) => `<div class="item">
+          <button type="button" class="t" data-ofi="${o.id}" style="all:unset;cursor:pointer;display:flex;justify-content:space-between;gap:10px"><div><b>${esc(o.nome)}</b><div class="meta"><span>${esc(o.especialidade || "")}</span>${o.nota ? `<span style="color:var(--warn)" aria-label="Nota ${o.nota} de 5">${estrelas(o.nota)}</span>` : ""}</div></div><span class="valor">${R0(gasto)}</span></button>
+          <div class="meta"><span>${n} serviço${n === 1 ? "" : "s"}</span><span>${ultima ? "Última vez em " + dt(ultima) : "Nenhum serviço lançado"}</span>${carros.map(v => `<span class="chip warn">${esc(v.placa)} lá agora</span>`).join("")}</div>
+          <div class="acoes">${o.telefone ? `<a class="btn zap peq" href="${zapOficina(o)}" target="_blank" rel="noopener">WhatsApp</a><a class="btn peq" href="tel:${esc(String(o.telefone).replace(/\D/g, ""))}">Ligar</a>` : ""}${o.endereco ? `<a class="btn peq" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(o.endereco)}" target="_blank" rel="noopener">Mapa</a>` : ""}<button class="btn peq" type="button" data-ofi="${o.id}">Ver serviços</button></div></div>`).join("")}</div>`
+        : `<div class="vazio">Nenhuma oficina cadastrada. Cadastre as que você usa para ter o contato à mão e saber quanto gasta em cada uma.</div>`}
+        <button class="fab" type="button" data-novaofi="1">+ Oficina</button>`;
     },
     vencimentos() {
       const abertos = D.vencimentos.filter(x => !x.pago), pagos = D.vencimentos.filter(x => x.pago).slice(-10).reverse();
@@ -436,6 +458,7 @@
       <div class="grade2"><div class="campo"><label for="dVei">Carro</label><select id="dVei"><option value="">Frota toda</option>${D.veiculos.map(v => `<option value="${v.id}" ${x.veiculo_id === v.id ? "selected" : ""}>${esc(v.placa)}</option>`).join("")}</select></div>
       <div class="campo"><label for="dDt">Data</label><input id="dDt" type="date" value="${esc(x.data)}" required></div></div>
       <div class="campo"><label for="dDesc">Descrição</label><input id="dDesc" value="${esc(x.descricao)}" placeholder="Ex.: Troca de óleo, posto Shell"></div>
+      <div class="campo"><label for="dOf">Oficina ou fornecedor (opcional)</label><select id="dOf">${optOficinas(x.oficina_id)}</select></div>
       <div class="campo"><label for="dKm">Km no dia (opcional)</label><input id="dKm" type="number" inputmode="numeric" value="${esc(x.km)}"></div>
       <div id="dMulta" class="secao" ${x.categoria === "multa" ? "" : "hidden"}>
         <div class="campo"><label for="dMot">Motorista responsável</label><select id="dMot"><option value="">Ninguém</option>${D.motoristas.map(m => `<option value="${m.id}" ${x.motorista_id === m.id ? "selected" : ""}>${esc(m.nome)}</option>`).join("")}</select></div>
@@ -447,7 +470,7 @@
     $("fD").onsubmit = async e => {
       e.preventDefault();
       const multa = $("dCat").value === "multa", rep = multa && $("dRep").checked && $("dMot").value;
-      const dado = { id: x.id, categoria: $("dCat").value, valor: num($("dVal").value), veiculo_id: $("dVei").value || null, data: $("dDt").value, descricao: $("dDesc").value.trim() || null, km: num($("dKm").value), motorista_id: multa ? ($("dMot").value || null) : null, repassar: !!rep };
+      const dado = { id: x.id, categoria: $("dCat").value, valor: num($("dVal").value), veiculo_id: $("dVei").value || null, data: $("dDt").value, descricao: $("dDesc").value.trim() || null, km: num($("dKm").value), oficina_id: $("dOf").value || null, motorista_id: multa ? ($("dMot").value || null) : null, repassar: !!rep };
       try {
         const salvo = await rpc("frota_salvar", { cod: codigo, tabela: "frota_despesas", dado });
         if (rep && !D.cobrancas.some(c => (c.obs || "").includes(salvo.id.slice(0, 8)))) {
@@ -464,7 +487,8 @@
     const v = veic(x.veiculo_id);
     abrirFolha(x.id ? `${x.item}${v ? " · " + v.placa : ""}` : "Novo item de manutenção", `
       ${x.id ? `<div class="item"><div class="t"><b>Fez agora?</b></div><div class="meta">Registra hoje com o km atual do carro (${km(v && v.km_atual)}). Se tiver custo, já lança a despesa.</div>
-        <div class="linha"><input id="mxCusto" type="number" inputmode="decimal" step="0.01" placeholder="Custo (opcional)" aria-label="Custo" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:0 12px;min-height:44px;background:var(--surface)"><button class="btn pri" type="button" id="mxFeito">Marcar como feita</button></div></div>` : ""}
+        <div class="linha"><input id="mxCusto" type="number" inputmode="decimal" step="0.01" placeholder="Custo (opcional)" aria-label="Custo" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:0 12px;min-height:44px;background:var(--surface)"><button class="btn pri" type="button" id="mxFeito">Marcar como feita</button></div>
+        ${(D.oficinas || []).length ? `<select id="mxOf" aria-label="Oficina" style="border:1px solid var(--line);border-radius:10px;padding:0 12px;min-height:44px;background:var(--surface)">${optOficinas("").replace("Nenhuma", "Feita em qual oficina? (opcional)")}</select>` : ""}</div>` : ""}
       <form id="fMx" class="secao">
         <div class="campo"><label for="xVei">Carro</label><select id="xVei" required>${D.veiculos.map(c => `<option value="${c.id}" ${x.veiculo_id === c.id ? "selected" : ""}>${esc(c.placa)} · ${esc(c.modelo || "")}</option>`).join("")}</select></div>
         <div class="campo"><label for="xItem">Item</label><input id="xItem" value="${esc(x.item)}" placeholder="Ex.: Troca de óleo" required></div>
@@ -481,11 +505,44 @@
         try {
           await rpc("frota_salvar", { cod: codigo, tabela: "frota_manutencoes", dado: { id: x.id, ultima_data: D.hoje, ultima_km: v ? v.km_atual : x.ultima_km } });
           const custo = num($("mxCusto").value);
-          if (custo) await rpc("frota_salvar", { cod: codigo, tabela: "frota_despesas", dado: { veiculo_id: x.veiculo_id, categoria: /pneu/i.test(x.item) ? "pneus" : "manutencao", descricao: x.item, valor: custo, data: D.hoje, km: v ? v.km_atual : null } });
+          if (custo) await rpc("frota_salvar", { cod: codigo, tabela: "frota_despesas", dado: { veiculo_id: x.veiculo_id, categoria: /pneu/i.test(x.item) ? "pneus" : "manutencao", descricao: x.item, valor: custo, data: D.hoje, km: v ? v.km_atual : null, oficina_id: ($("mxOf") && $("mxOf").value) || null } });
           await carregar(); fecharFolha(); render(); toast("Manutenção registrada");
         } catch (err) { toast("Não salvou: " + err.message); }
       };
     }
+  }
+  function zapOficina(o, v) {
+    let tel = String(o.telefone || "").replace(/\D/g, ""); if (tel.length <= 11) tel = "55" + tel;
+    const txt = `Olá! Aqui é ${D.frota.dono ? D.frota.dono + ", da " : "da "}${D.frota.nome}.` + (v ? ` Sobre o carro ${v.placa} (${v.modelo || ""}): ` : " ");
+    return `https://wa.me/${tel}?text=${encodeURIComponent(txt)}`;
+  }
+  function formOficina(o) {
+    o = o || {};
+    abrirFolha(o.id ? "Editar oficina" : "Nova oficina", `<form id="fO" class="secao">
+      <div class="campo"><label for="oNome">Nome</label><input id="oNome" value="${esc(o.nome)}" required></div>
+      <div class="campo"><label for="oTel">WhatsApp ou telefone</label><input id="oTel" inputmode="tel" value="${esc(o.telefone)}" placeholder="(31) 99999-9999"></div>
+      <div class="campo"><label for="oEnd">Endereço</label><input id="oEnd" value="${esc(o.endereco)}" placeholder="Rua, número, bairro, cidade"></div>
+      <div class="campo"><label for="oEsp">O que faz</label><input id="oEsp" list="espOf" value="${esc(o.especialidade)}" placeholder="Ex.: Mecânica geral"><datalist id="espOf"><option>Mecânica geral</option><option>Pneus, alinhamento e balanceamento</option><option>Funilaria e pintura</option><option>Elétrica</option><option>Embreagem e câmbio</option><option>Ar-condicionado</option><option>Autopeças</option><option>Guincho</option><option>Lava-jato</option></datalist></div>
+      <div class="campo"><label for="oNota">Sua nota</label><select id="oNota"><option value="">Sem nota</option>${[5, 4, 3, 2, 1].map(n => `<option value="${n}" ${+o.nota === n ? "selected" : ""}>${estrelas(n)} (${n})</option>`).join("")}</select></div>
+      <div class="campo"><label for="oObs">Observações</label><textarea id="oObs" placeholder="Ex.: dá 10% à vista, entrega no mesmo dia">${esc(o.obs)}</textarea></div>
+      <button class="btn pri cheio" type="submit">Salvar oficina</button>
+      ${o.id ? `<button class="btn perigo cheio" type="button" id="oDel">Apagar oficina</button>` : ""}</form>`);
+    $("fO").onsubmit = e => { e.preventDefault(); salvar("frota_oficinas", { id: o.id, nome: $("oNome").value.trim(), telefone: $("oTel").value.replace(/\D/g, "") || null, endereco: $("oEnd").value.trim() || null, especialidade: $("oEsp").value.trim() || null, nota: num($("oNota").value), obs: $("oObs").value.trim() || null }, "Oficina salva"); };
+    if (o.id) $("oDel").onclick = () => confirmar("Apagar esta oficina? Os serviços antigos continuam nas despesas.", () => apagar("frota_oficinas", o.id, "Oficina apagada"));
+  }
+  function detalheOficina(id) {
+    const o = ofi(id); if (!o) return;
+    const serv = D.despesas.filter(x => x.oficina_id === id);
+    const tot = serv.reduce((s, x) => s + (+x.valor || 0), 0);
+    const porCarro = {}; serv.forEach(x => { const k = x.veiculo_id || "frota"; porCarro[k] = (porCarro[k] || 0) + (+x.valor || 0); });
+    abrirFolha(o.nome, `
+      <div class="item"><div class="meta"><span>${esc(o.especialidade || "")}</span>${o.nota ? `<span style="color:var(--warn)">${estrelas(o.nota)}</span>` : ""}${o.telefone ? `<span>${esc(fone(o.telefone))}</span>` : ""}${o.endereco ? `<span>${esc(o.endereco)}</span>` : ""}</div>
+        ${o.obs ? `<div class="meta">${esc(o.obs)}</div>` : ""}
+        <div class="acoes">${o.telefone ? `<a class="btn zap peq" href="${zapOficina(o)}" target="_blank" rel="noopener">WhatsApp</a>` : ""}<button class="btn peq" type="button" id="doEdit">Editar</button></div></div>
+      <div class="kpis" style="grid-template-columns:repeat(2,minmax(0,1fr))"><div class="kpi"><span class="v">${R0(tot)}</span><span class="l">gasto no total</span></div><div class="kpi"><span class="v">${serv.length}</span><span class="l">serviço${serv.length === 1 ? "" : "s"} lançado${serv.length === 1 ? "" : "s"}</span></div></div>
+      ${Object.keys(porCarro).length ? `<div class="item barras">${Object.entries(porCarro).sort((a, b) => b[1] - a[1]).map(([k, val]) => `<div class="barra">${k === "frota" ? "<span>Frota toda</span>" : `<span class="placa">${esc(veic(k)?.placa || "–")}</span>`}<div class="trilho"><i class="neg" style="width:${(val / tot * 100).toFixed(1)}%;background:var(--muted)"></i></div><span class="v">${R0(val)}</span></div>`).join("")}</div>` : ""}
+      <div class="secao"><h3>Serviços</h3>${serv.length ? `<div class="lista">${serv.map(x => `<button type="button" class="item clicavel" data-acao="desp" data-id="${x.id}"><div class="t"><b>${esc(x.descricao || CAT[x.categoria] || "")}</b><span class="valor">${R$(x.valor)}</span></div><div class="meta"><span>${dt(x.data)}</span>${veic(x.veiculo_id) ? `<span class="placa">${esc(veic(x.veiculo_id).placa)}</span>` : ""}${x.km ? `<span>${km(x.km)}</span>` : ""}</div></button>`).join("")}</div>` : `<div class="vazio">Nenhum serviço lançado. Ao lançar uma despesa, escolha esta oficina.</div>`}</div>`);
+    $("doEdit").onclick = () => formOficina(o);
   }
   const PLANO = [["Troca de óleo e filtro", 10000, 180], ["Alinhamento e balanceamento", 10000, null], ["Rodízio de pneus", 10000, null], ["Pastilhas de freio (revisar)", 20000, null], ["Filtro de ar e de cabine", 15000, 365], ["Correia dentada", 60000, null]];
   async function planoPadrao(vid) {
@@ -558,6 +615,8 @@
       else if (d.novamanut !== undefined) formManut(null, d.novamanut);
       else if (d.novovenc) formVenc();
       else if (d.plano) planoPadrao(d.plano);
+      else if (d.novaofi) formOficina();
+      else if (d.ofi) detalheOficina(d.ofi);
       else if (d.acao) {
         const id = d.id;
         if (d.acao === "cobrar") detalheMotorista(id);

@@ -144,3 +144,4 @@ main{max-width:860px;width:100%;margin:0 auto;padding-block:16px 110px;padding-l
 .folha .kpi{padding:10px}
 .folha .kpi .v{font-size:19px}
 @media (min-width:900px){.abas button{grid-template-columns:24px 1fr auto}}
+main>[data-voltar]{justify-self:start}
